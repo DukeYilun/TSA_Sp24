@@ -1,11 +1,11 @@
 ---
 title: "ENV 790.30 - Time Series Analysis for Energy Data | Spring 2024"
 subtitle: "Assignment 3 - Due date 02/01/24"
-author: "Student Name"
+author: "Yilun Zhu"
 output: pdf_document
 geometry: margin=2.54cm
 editor_options: 
-  chunk_output_type: console
+  chunk_output_type: inline
 ---
 ```{r}
 
@@ -35,7 +35,22 @@ R packages needed for this assignment:"forecast","tseries", and "Kendall". Insta
 
 ```{r}
 #Load/install required package here
+library(lubridate)
+library(ggplot2)
+library(forecast)
+library(Kendall)
+library(tseries)
 
+#Import Data
+Renew_Eng <- read.csv(file="../Data/Table_10.1_Renewable_Energy_Production_and_Consumption_by_Source.csv",header=TRUE,dec = ".",sep=",",stringsAsFactors = TRUE)
+#Take three column
+V_Renew_Eng <- Renew_Eng[,4:6]
+Ren_Date <- ym(Renew_Eng[,1])
+Renew_Eng <- cbind(Ren_Date, V_Renew_Eng)
+nobs <- nrow(Renew_Eng)
+ncolu <- ncol(Renew_Eng)-1
+Ren_Date <- Renew_Eng[,1]
+ts_Renew_Eng <- ts(Renew_Eng[,2:4], start = c(1973,1), frequency = 12)
 ```
 
 ##Trend Component
@@ -43,18 +58,74 @@ R packages needed for this assignment:"forecast","tseries", and "Kendall". Insta
 ### Q1
 For each time series, i.e., Renewable Energy Production and Hydroelectric Consumption create three plots: one with time series, one with the ACF and with the PACF. You may use the some code form A2, but I want all the three plots side by side as in a grid.
 (Hint: use function `plot_grid()` from the `cowplot` package)
+```{r}
+library(cowplot)
+
+for(i in 1:ncolu){
+  par(mfrow=c(1,2))
+  Acf(ts_Renew_Eng[,i],lag.max=40,main=paste("Inflows HP",i,sep="")) 
+  Pacf(ts_Renew_Eng[,i],lag.max=40,main=paste("Inflows HP",i,sep=""))
+  
+}
+
+
+
+```
 
 ### Q2
 From the plot in Q1, do the series Total Biomass Energy Production, Total Renewable Energy Production, Hydroelectric Power Consumption appear to have a trend? If yes, what kind of trend?
 
+```{r}
+#Total Biomass Energy Production and Total Renewable Energy Production all have a declining trend. Hydroelectric Power Consumption seems doesn't have trend.
+```
+
 ### Q3
 Use the *lm()* function to fit a linear trend to the three time series. Ask R to print the summary of the regression. Interpret the regression output, i.e., slope and intercept. Save the regression coefficients for further analysis.
+
+```{r}
+t <- 1:nobs
+
+iTREP <- 3 
+linear_Trend_TREP <- lm(Renew_Eng[,iTREP]~t)
+summary(linear_Trend_TREP)
+TREP_beta0 <- linear_Trend_TREP$coefficients[1]
+TREP_beta1 <- linear_Trend_TREP$coefficients[2]
+iHPC <- 4 
+linear_Trend_HPC <- lm(Renew_Eng[,iHPC]~t)
+summary(linear_Trend_HPC)
+HPC_beta0 <- linear_Trend_HPC$coefficients[1]
+HPC_beta1 <- linear_Trend_HPC$coefficients[2]
+
+#Interpret: the beta1 for each linear model is the slope, which means each unit increase in independent variable t will cause beta1 unit increase in TBEP/TREP/HPC. Or it means, for each month after 1973 Jan, TREP will produce 0.704 more units than last month, HPC will consume less 0.00985 units than last month. Intercept can be treated as an estimate of TREP/HPC in 1972 December, since it means t = 0 and we set 1973 Jan is t = 1. 
+```
  
 ### Q4
 Use the regression coefficients from Q3 to detrend the series. Plot the detrended series and compare with the plots from Q1. What happened? Did anything change?
 
+```{r}
+
+TREP_detrend <- Renew_Eng[,iTREP] - (TREP_beta0 + TREP_beta1*t)
+df_TREPdetrend <- data.frame("date"= Renew_Eng$Ren_Date, "observed" = Renew_Eng[,iTREP], "detrend" = TREP_detrend)
+ggplot(df_TREPdetrend, aes(x=date))+
+  geom_line(aes(y=observed),color = "black")+
+  geom_line(aes(y=detrend), color = "blue")
+
+HPC_detrend <- Renew_Eng[,iHPC] - (HPC_beta0 + HPC_beta1*t)
+df_HPCdetrend <- data.frame("date"= Renew_Eng$Ren_Date, "observed" = Renew_Eng[,iHPC], "detrend" = HPC_detrend)
+ggplot(df_HPCdetrend, aes(x=date))+
+  geom_line(aes(y=observed),color = "black")+
+  geom_line(aes(y=detrend), color = "blue")
+
+
+
+```
+
 ### Q5
 Plot ACF and PACF for the detrended series and compare with the plots from Q1. You may use plot_grid() again to get them side by side. nut mot mandatory. Did the plots change? How?
+
+```{r}
+
+```
 
 ## Seasonal Component
 
@@ -63,13 +134,27 @@ Set aside the detrended series and consider the original series again from Q1 to
 ### Q6
 Just by looking at the time series and the acf plots, do the series seem to have a seasonal trend? No need to run any code to answer your question. Just type in you answer below.
 
+```{r}
+
+```
+
 ### Q7
 Use function *lm()* to fit a seasonal means model (i.e. using the seasonal dummies) the two time series. Ask R to print the summary of the regression. Interpret the regression output. From the results which series have a seasonal trend? Do the results match you answer to Q6?
+
+```{r}
+
+```
 
 ### Q8
 Use the regression coefficients from Q7 to deseason the series. Plot the deseason series and compare with the plots from part Q1. Did anything change?
 
+```{r}
+
+```
+
 ### Q9
 Plot ACF and PACF for the deseason series and compare with the plots from Q1. You may use plot_grid() again to get them side by side. nut mot mandatory. Did the plots change? How?
 
+```{r}
 
+```

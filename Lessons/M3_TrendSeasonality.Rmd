@@ -109,9 +109,10 @@ Fixed!
 Many of the functions we will use require a time series object. You can transform your data in a time series using the function *ts()*. 
 
 ```{r}
-ts_inflow_data <- ts(inflow_data[,2:(2+nhydro-1)],frequency=12) 
+ts_inflow_data <- ts(inflow_data[,2:(2+nhydro-1)], start = c(1931,1), frequency=12) 
 #note that we are only transforming columns with inflow data, not the date columns  #start=my_date[1],end=my_date[nobs],
 head(ts_inflow_data,15)
+# head(data,X)  fist X rows of dataset
 ```
 
 
@@ -121,6 +122,7 @@ Let's use functions Acf() and Pacf() from package "forecast".
 
 ```{r acf}
 #Acf and Pacf for HP1
+#par cannot work with ggplot
 for(i in 1:nhydro){
   par(mfrow=c(1,2))  #place plot side by side
   Acf(ts_inflow_data[,i],lag.max=40,main=paste("Inflows HP",i,sep="")) 
@@ -137,10 +139,15 @@ Let's identify and remove trend component. You start by fitting a linear model t
 
 ```{r}
 #Create vector t
+t <- 1:nobs
 
-
+iHP <- 4 #HP4 and HP4 is column 5 so should be used in iHP+1 in name column
+#next time you just need to change iHP to switch this code to do other plots.
+# for(iHP in 1:nhydro){}      make it a loop
 
 #Fit a linear trend to TS of iHP
+liner_Trend <- lm(inflow_data[,iHP+1]~t)
+summary(liner_Trend)
 
 
 ```
@@ -148,8 +155,18 @@ Let's identify and remove trend component. You start by fitting a linear model t
 
 ```{r}
 #remove the trend from series
+# dataset$coefficients get data from dataset. [1],[2] pich which data
+beta0 <- liner_Trend$coefficients[1]
+beta1 <- liner_Trend$coefficients[2]
 
+# don't need to reduct epsilon
+y_detrend <- inflow_data[,iHP+1] - (beta0 + beta1*t)
 
+df_detrend <- data.frame("date"= inflow_data$my_date, "observed" = inflow_data[,iHP+1], "detrend" = y_detrend)
+
+ggplot(df_detrend, aes(x=date))+
+  geom_line(aes(y=observed),color = "black")+
+  geom_line(aes(y=detrend), color = "blue")
 
 ```
 
