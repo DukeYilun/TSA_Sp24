@@ -172,15 +172,86 @@ ggplot(df_detrend, aes(x=date))+
 
 Note that blue line is our original series, red line is our trend, green line is our original series minus the trend or in other words the detrended series. And in orange is the trend line for the detrended series which has slope 0 meaning we were able to effectively eliminate the trend with a linear model.
 
+```{r}
+#checkout want happened by plot
+library(cowplot)
+library(ggfortify)
 
+ts_y_detrend <- ts(y_detrend, start=c(1931,1), frequency = 12)
+
+plot_grid(
+  autoplot(ts_inflow_data[,iHP], ylab="Observed Inflow"),
+  autoplot(Acf(ts_inflow_data[,iHP], lag.max=40,plot = FALSE),main=NULL),
+  autoplot(Pacf(ts_inflow_data[,iHP], lag.max=40,plot = FALSE),main=NULL),
+  autoplot(ts_y_detrend, ylab="Detrend Inflow - Linear Model"),
+  autoplot(Acf(ts_y_detrend, lag.max=40, plot = FALSE), main=NULL),
+  autoplot(Pacf(ts_y_detrend, lag.max=40, plot = FALSE), main=NULL),
+  nrow=2,nocl=3
+)
+```
 ## Seasonal Component
 
 Now let's shift attention to the seasonal component.
 
 ```{r}
 #Use seasonal means model
+iHP <- 1
+
+#create dummies
+dummies <- seasonaldummy(ts_inflow_data[,iHP])
+
+#There is no dummies for December because Dec will be the intercept
+#Remember that you should remove linear t trend and then consider seasonal trend. This is only for example practise.
+
+#regress on dummies
+seas_linear_model <- lm(inflow_data[,(iHP+1)]~dummies)
+summary(seas_linear_model)
+
+#store coeff
+beta0 <- seas_linear_model$coefficients[1]
+beta1 <- seas_linear_model$coefficients[2:12]
+
+#seasonal comp
+seas_comp <- array(0,nobs)
+for (i in 1:nobs) {
+  seas_comp[i] <- beta0 + beta1 %*% dummies[i,]
+}
+
+ggplot(inflow_data, aes(x=my_date))+
+  geom_line(aes(y=inflow_data[,(iHP+1)]), col = "black")+
+  geom_line(aes(y= seas_comp), col = "orange")
+
+y_deseason <- inflow_data[,(iHP+1)] - seas_comp
+  
+ggplot(inflow_data, aes(x=my_date))+
+  geom_line(aes(y=inflow_data[,iHP+1]), col = "black")+
+  geom_line(aes(y= y_deseason), col = "green")
 
 
+```
+
+```{r}
+#checkout what happened
+library(cowplot)
+library(ggfortify)
+
+ts_y_deseason <- ts(y_deseason, start=c(1931,1), frequency = 12)
+
+plot_grid(
+  autoplot(ts_inflow_data[,iHP], ylab="Observed Inflow"),
+  autoplot(Acf(ts_inflow_data[,iHP], lag.max=40,plot = FALSE),main=NULL),
+  autoplot(Pacf(ts_inflow_data[,iHP], lag.max=40,plot = FALSE),main=NULL),
+  autoplot(ts_y_deseason, ylab="Deseason Inflow - Linear Model"),
+  autoplot(Acf(ts_y_deseason, lag.max=40, plot = FALSE), main=NULL),
+  autoplot(Pacf(ts_y_deseason, lag.max=40, plot = FALSE), main=NULL),
+  nrow=2,nocl=3
+)
+```
+## decompose
+
+```{r}
+iHP <- 1
+plot(decompose(ts_inflow_data[,iHP]))
 ```
 
 ##Exercise
@@ -195,7 +266,18 @@ Some test only work for non-seasonal data. So let's create another series with y
 ```{r}
 #Group data in yearly steps instances
 
+inflow_data_matrix <- matrix(ts_inflow_data[,iHP],byrow=FALSE, nrow=12)
+inflow_data_yearly <- colMeans(inflow_data_matrix)
 
+library(dplyr)
+my_date <- inflow_data$my_date
+my_year <- c(year(first(my_date)):year(last(my_date)))
+#You can also reorganize dataset
+
+inflow_data_new_yearly <- data.frame(my_year, inflow_data_yearly)
+ggplot(inflow_data_new_yearly, aes(x=my_year, y=inflow_data_yearly))+
+  geom_line(color = "blue")+
+  geom_smooth(color = "red", method = "lm")
 ```
 
 ### Mann Kendall 
@@ -203,12 +285,22 @@ Some test only work for non-seasonal data. So let's create another series with y
 Check for deterministic trend.
 
 ```{r}
+#Mann-Kendall test is in Kendall package
+#Mann-Kendall test should not be used to seasonal data
+#Mann-Kendall test are testing times of increasing/no change/decreasing, Yt-Y(t-1) >0 take 1, =0 take 0, <0 take -1. 
+
 
 #Since I have seasonal data I cannot use the simple MannKendall()
+#If you want to use seasonal data, use SeasonalMannKendall()
 #another example of functions that need a ts object
-
+SMKtest <- SeasonalMannKendall(ts_inflow_data[,iHP])
+print("Result for seasonal Mann Kendall")
+print(summary(SMKtest))
 
 #Use yearly date to run Mann Kendall
+
+print("Result for Mann Kendall on average yearly series")
+print(summary(MannKendall(inflow_data_new_yearly)))
 
 ```
 
@@ -217,11 +309,16 @@ Check for deterministic trend.
 Also check for deterministic trend, for non-seasonal data only.
 
 ```{r}
-#Deterministic trend with Spearman Correlation Test
+#Deterministic trend with Spearman Correlation 
+# use cor.test() better for testing hypothesis. Spearman correlation can do better because it don't ask for linear relationship.
+
+# Spearman correlation is in "stats" package
 print("Results from Spearman Correlation")
-
-
+sp_rho=cor(inflow_data_yearly,my_year,method="spearman")
+print(sp_rho)
 #with cor.test you can get test statistics
+sp_rho=cor.test(inflow_data_yearly,my_year,method="spearman")
+print(sp_rho)
 
 ```
 
@@ -231,11 +328,12 @@ Used to detect stochastic trend.
 
 ```{r}
 #Null hypothesis is that data has a unit root
+#Stochastic trend means each Yt only affected by Yt-1 
 print("Results for ADF test/n")
-
+print(adf.test(ts_inflow_data[,iHP], alternative = "stationary"))
 #Now let's try the yearly data
 print("Results for ADF test on yearly data/n")
-
+print(adf.test(inflow_data_yearly, alternative = "stationary"))
 ```
 
 ##Exercise

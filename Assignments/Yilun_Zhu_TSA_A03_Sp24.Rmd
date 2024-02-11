@@ -45,6 +45,7 @@ library(tseries)
 Renew_Eng <- read.csv(file="../Data/Table_10.1_Renewable_Energy_Production_and_Consumption_by_Source.csv",header=TRUE,dec = ".",sep=",",stringsAsFactors = TRUE)
 #Take three column
 V_Renew_Eng <- Renew_Eng[,4:6]
+#Transfer Ren_Date from a factor to date, in order to use in plot
 Ren_Date <- ym(Renew_Eng[,1])
 Renew_Eng <- cbind(Ren_Date, V_Renew_Eng)
 nobs <- nrow(Renew_Eng)
@@ -60,15 +61,18 @@ For each time series, i.e., Renewable Energy Production and Hydroelectric Consum
 (Hint: use function `plot_grid()` from the `cowplot` package)
 ```{r}
 library(cowplot)
+TREPacf <-  Acf(ts_Renew_Eng[,2],lag.max=40,main=paste("TREPAcf"), plot = FALSE) 
+TREPpacf <- Pacf(ts_Renew_Eng[,2],lag.max=40,main=paste("TREPPacf"), plot = FALSE)
+HPCacf <- Acf(ts_Renew_Eng[,3],lag.max=40,main=paste("HPCAcf"), plot = FALSE) 
+HPCpacf <- Pacf(ts_Renew_Eng[,3],lag.max=40,main=paste("HPCPacf"), plot = FALSE)
 
-for(i in 1:ncolu){
-  par(mfrow=c(1,2))
-  Acf(ts_Renew_Eng[,i],lag.max=40,main=paste("Inflows HP",i,sep="")) 
-  Pacf(ts_Renew_Eng[,i],lag.max=40,main=paste("Inflows HP",i,sep=""))
-  
-}
+tsTREP_plot <- ggplot(Renew_Eng, aes(x=Ren_Date))+
+  geom_line(aes(y=Renew_Eng[,3]),color = "black")
+tsHPC_plot <- ggplot(Renew_Eng, aes(x=Ren_Date))+
+  geom_line(aes(y=Renew_Eng[,4]),color = "black")
 
-
+plot_grid(tsTREP_plot,autoplot(TREPacf),autoplot(TREPpacf))
+plot_grid(tsHPC_plot,autoplot(HPCacf),autoplot(HPCpacf))
 
 ```
 
@@ -105,18 +109,18 @@ Use the regression coefficients from Q3 to detrend the series. Plot the detrende
 ```{r}
 
 TREP_detrend <- Renew_Eng[,iTREP] - (TREP_beta0 + TREP_beta1*t)
-df_TREPdetrend <- data.frame("date"= Renew_Eng$Ren_Date, "observed" = Renew_Eng[,iTREP], "detrend" = TREP_detrend)
+df_TREPdetrend <- data.frame("date"= Renew_Eng$Ren_Date, "TREPobserved" = Renew_Eng[,iTREP], "TREPdetrend" = TREP_detrend)
 ggplot(df_TREPdetrend, aes(x=date))+
-  geom_line(aes(y=observed),color = "black")+
-  geom_line(aes(y=detrend), color = "blue")
+  geom_line(aes(y=TREPobserved),color = "black")+
+  geom_line(aes(y=TREPdetrend), color = "blue")
 
 HPC_detrend <- Renew_Eng[,iHPC] - (HPC_beta0 + HPC_beta1*t)
-df_HPCdetrend <- data.frame("date"= Renew_Eng$Ren_Date, "observed" = Renew_Eng[,iHPC], "detrend" = HPC_detrend)
+df_HPCdetrend <- data.frame("date"= Renew_Eng$Ren_Date, "HPCobserved" = Renew_Eng[,iHPC], "HPCdetrend" = HPC_detrend)
 ggplot(df_HPCdetrend, aes(x=date))+
-  geom_line(aes(y=observed),color = "black")+
-  geom_line(aes(y=detrend), color = "blue")
+  geom_line(aes(y=HPCobserved),color = "black")+
+  geom_line(aes(y=HPCdetrend), color = "blue")
 
-
+#In HPC plot, all the change is the line moves downward in some extent. In TREP plot, the line also moves downward and the magnitude of change from 2010 to 2020 is much smaller.
 
 ```
 
@@ -124,6 +128,17 @@ ggplot(df_HPCdetrend, aes(x=date))+
 Plot ACF and PACF for the detrended series and compare with the plots from Q1. You may use plot_grid() again to get them side by side. nut mot mandatory. Did the plots change? How?
 
 ```{r}
+TREPacf <- Acf(ts_Renew_Eng[,2],lag.max=40,main=paste("TREP","Acf",sep="")) 
+TREPpacf <- Pacf(ts_Renew_Eng[,2],lag.max=40,main=paste("TREP","Pacf",sep=""))
+DeTREPacf <- Acf(df_TREPdetrend[,3],lag.max=40,main=paste("DeTREP","Acf",sep="")) 
+DeTREPpacf <- Pacf(df_TREPdetrend[,3],lag.max=40,main=paste("DeTREP","Pacf",sep=""))
+
+
+HPCacf <- Acf(ts_Renew_Eng[,3],lag.max=40,main=paste("HPC","Acf",sep="")) 
+HPCpacf <- Pacf(ts_Renew_Eng[,3],lag.max=40,main=paste("HPC","Pacf",sep=""))
+DeHPCacf <- Acf(df_HPCdetrend[,3],lag.max=40,main=paste("DeHPC","Acf",sep="")) 
+DeHPCpacf <- Pacf(df_HPCdetrend[,3],lag.max=40,main=paste("DeHPC","Pacf",sep=""))
+# These plots change but all change slightly. For TREP, more higher acf and pacf shows after detrend. For HPC, there is almost no change. 
 
 ```
 
@@ -135,26 +150,58 @@ Set aside the detrended series and consider the original series again from Q1 to
 Just by looking at the time series and the acf plots, do the series seem to have a seasonal trend? No need to run any code to answer your question. Just type in you answer below.
 
 ```{r}
-
+#For HPC, there is an obvious seasonal trend. For TREP, there seems to have a small decreasing seasonal trend which reach its summit every 12 lag. (12,24,36 in detrended acf)
 ```
 
 ### Q7
 Use function *lm()* to fit a seasonal means model (i.e. using the seasonal dummies) the two time series. Ask R to print the summary of the regression. Interpret the regression output. From the results which series have a seasonal trend? Do the results match you answer to Q6?
 
 ```{r}
+dummies <- seasonaldummy(ts_Renew_Eng[,2])
+TREPseas_linear_model <- lm(Renew_Eng[,3]~dummies)
+summary(TREPseas_linear_model)
 
+HPCseas_linear_model <- lm(Renew_Eng[,4]~dummies)
+summary(HPCseas_linear_model)
+
+#The result shows HPC has a seasonal trend and TREP doesn't since its regression has a great P value.
 ```
 
 ### Q8
 Use the regression coefficients from Q7 to deseason the series. Plot the deseason series and compare with the plots from part Q1. Did anything change?
 
 ```{r}
+#Since TREP doesn't have the seasonal trend, so I just did deseason to HPC.
+HPCbeta0 <- HPCseas_linear_model$coefficients[1]
+HPCbeta1 <- HPCseas_linear_model$coefficients[2:12]
 
+HPCseas_comp <- array(0,nobs)
+for (i in 1:nobs) {
+  HPCseas_comp[i] <- HPCbeta0 + HPCbeta1 %*% dummies[i,]
+}
+
+ggplot(Renew_Eng, aes(x=Ren_Date))+
+  geom_line(aes(y=Renew_Eng[,4]), col = "black")+
+  geom_line(aes(y= HPCseas_comp), col = "orange")
+
+HPC_deseason <- Renew_Eng[,4] - HPCseas_comp
+  
+ggplot(Renew_Eng, aes(x=Ren_Date))+
+  geom_line(aes(y=Renew_Eng[,4]), col = "black")+
+  geom_line(aes(y= HPC_deseason), col = "green")
+
+#The plots have moved downward as a whole, and the trend of HPC has changed in some time periods.
 ```
 
 ### Q9
 Plot ACF and PACF for the deseason series and compare with the plots from Q1. You may use plot_grid() again to get them side by side. nut mot mandatory. Did the plots change? How?
 
 ```{r}
+HPCacf <- Acf(ts_Renew_Eng[,3],lag.max=40,main=paste("HPC","Acf",sep="")) 
+HPCpacf <- Pacf(ts_Renew_Eng[,3],lag.max=40,main=paste("HPC","Pacf",sep=""))
+df_HPCseason <- data.frame("date"= Renew_Eng$Ren_Date, "HPCobserved" = Renew_Eng[,iHPC], "HPCseason" = HPC_deseason)
+HPCdes_acf <- Acf(df_HPCseason[,3],lag.max=40,main=paste("HPC","Deseason Acf",sep=" "))
+HPCdes_pacf <- Pacf(df_HPCseason[,3],lag.max=40,main=paste("HPC","Deseason Pacf",sep=" "))
 
+#Both Acf and Pacf change a lot. Deseasoned Acf no longer show seasonal change but a decreasing acf gradually decrease to 0 and become negative. For Pacf, except the 1st lag, all other lags' pacf decrease and are below the significant threshold levels.
 ```
