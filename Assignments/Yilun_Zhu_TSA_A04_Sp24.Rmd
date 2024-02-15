@@ -1,10 +1,13 @@
 ---
 title: "ENV 790.30 - Time Series Analysis for Energy Data | Spring 2024"
+author: "Yilun Zhu"
 subtitle: "Assignment 4 - Due date 02/12/24"
-author: "Student Name"
-output: pdf_document
+output:
+  pdf_document: default
+  html_document:
+    df_print: paged
 geometry: margin=2.54cm
-editor_options: 
+editor_options:
   chunk_output_type: console
 ---
   
@@ -22,7 +25,15 @@ R packages needed for this assignment: "xlsx" or "readxl", "ggplot2", "forecast"
 
 ```{r}
 #Load/install required package here
-
+library(lubridate)
+library(ggplot2)
+library(forecast)
+library(Kendall)
+library(tseries)
+library(stats)
+library(cowplot)
+library(dplyr)
+knitr::opts_chunk$set(echo = TRUE,tidy.opts=list(width.cutoff=80), tidy= FALSE)
 
 ```
 
@@ -32,7 +43,16 @@ Consider the same data you used for A3 from the spreadsheet "Table_10.1_Renewabl
 
 ```{r}
 #Importing data set - using readxl package
-
+Renew_Eng <- read.csv(file="./Data/Table_10.1_Renewable_Energy_Production_and_Consumption_by_Source.csv",header=TRUE,dec = ".",sep=",",stringsAsFactors = TRUE)
+#Take one column
+TREP_Eng <- Renew_Eng[,5]
+#Transfer Ren_Date from a factor to date, in order to use in plot
+Ren_Date <- ym(Renew_Eng[,1])
+#Use cbind to only bind two rows, it will change date to numeric
+#so here use cbind.data.frame
+TREP_data <- cbind.data.frame(Ren_Date, TREP_Eng)
+nobs <- nrow(TREP_data)
+ts_TREP_Eng <- ts(TREP_data[,2], start = c(1973,1), frequency = 12)
 
 ```
 
@@ -47,14 +67,24 @@ Difference the "Total Renewable Energy Production" series using function diff().
 Try differencing at lag 1 only once, i.e., make `lag=1` and `differences=1`. Plot the differenced series Do the series still seem to have trend?
 
 ```{r}
-
+plot(diff(ts_TREP_Eng, lag=1, differences = 1))
+DiffTREP <- diff(ts_TREP_Eng, lag=1, differences = 1)
+#Seems that there is almost no trend. 
+#Or maybe it has a trend of magnitude becoming larger.
 ```
 
 ### Q2
-Copy and paste part of your code for A3 where you run the regression for Total Renewable Energy Production and subtract that from the orinal series. This should be the code for Q3 and Q4. make sure you use the same name for you time series object that you had in A3.
+Copy and paste part of your code for A3 where you run the regression for Total Renewable Energy Production and subtract that from the original series. This should be the code for Q3 and Q4. make sure you use the same name for you time series object that you had in A3.
 
 ```{r}
+t <- 1:nobs
+linear_Trend_TREP <- lm(TREP_data[,2]~t)
+summary(linear_Trend_TREP)
+TREP_beta0 <- linear_Trend_TREP$coefficients[1]
+TREP_beta1 <- linear_Trend_TREP$coefficients[2]
 
+TREP_detrend <- TREP_data[,2] - (TREP_beta0 + TREP_beta1*t)
+df_TREPdetrend <- data.frame("date"= TREP_data$Ren_Date, "TREPobserved" = TREP_data[,2], "TREPdetrend" = TREP_detrend)
 ```
 
 ### Q3
@@ -63,7 +93,13 @@ Now let's compare the differenced series with the detrended series you calculate
 Using autoplot() + autolayer() create a plot that shows the three series together. Make sure your plot has a legend. The easiest way to do it is by adding the `series=` argument to each autoplot and autolayer function. Look at the key for A03 for an example. 
 
 ```{r}
-
+#Before autolayer, change TREP_detrend to ts object
+ts_TREP_Detrend <- ts(TREP_detrend,start = c(1973,1), frequency = 12)
+autoplot(ts_TREP_Eng, series = "Originial")+
+  autolayer(ts_TREP_Detrend, series = "Detrended")+
+  autolayer(DiffTREP, series = "Differences")+
+  ylab("Energy [Trillion Btu]")+
+  ggtitle("Total Renewable Energy Production")
 
 ```
 
@@ -71,8 +107,16 @@ Using autoplot() + autolayer() create a plot that shows the three series togethe
 Plot the ACF for the three series and compare the plots. Add the argument `ylim=c(-0.5,1)` to the autoplot() or Acf() function - whichever you are using to generate the plots - to make sure all three y axis have the same limits. Which method do you think was more efficient in eliminating the trend? The linear regression or differencing?
 
 ```{r}
+TREP_acf <- autoplot(Acf(ts_TREP_Eng, ylim=c(-0.5,1), lag.max=40, plot = FALSE ))+ ggtitle("Original")
+TREP_det_acf <- autoplot(Acf(ts_TREP_Detrend, ylim=c(-0.5,1), lag.max=40, plot = FALSE ))+ ggtitle("Detrended")
+TREP_diff_acf <- autoplot(Acf(DiffTREP, ylim=c(-0.5,1), lag.max=40, plot = FALSE ))+ ggtitle("Differenced")
 
+plotdraft <- plot_grid(TREP_acf,TREP_det_acf,TREP_diff_acf, nrow = 1, ncol =3)
+titledraft <- ggdraw() + draw_label("TREP Acf Compare", fontface='bold')
 
+plot_grid(titledraft,plotdraft,nrow=2,ncol=1,rel_heights = c(0.1,1))
+
+#Differencing shows great elimination on trend of TREP.
 ```
 
 
@@ -80,7 +124,24 @@ Plot the ACF for the three series and compare the plots. Add the argument `ylim=
 Compute the Seasonal Mann-Kendall and ADF Test for the original "Total Renewable Energy Production" series. Ask R to print the results. Interpret the results for both test. What is the conclusion from the Seasonal Mann Kendall test? What's the conclusion for the ADF test? Do they match what you observed in Q2? Recall that having a unit root means the series has a stochastic trend. And when a series has stochastic trend we need to use a different procedure to remove the trend.
 
 ```{r}
+SMKtest <- SeasonalMannKendall(ts_TREP_Eng)
+print("Result for seasonal Mann Kendall")
+print(summary(SMKtest))
 
+print("Results for ADF test/n")
+print(adf.test(ts_TREP_Eng, alternative = "stationary"))
+
+#The SMK test shows TREP is increasing in overall view, 
+#and since the p-value is extremely small, 
+#we can reject the hypothesis that TREP is stationary and 
+#confirm that TREP follows a trend. 
+#The ADF test shows a great p-value which is 0.9, 
+#indicating that TREP may has a unit root, 
+#so we cannot reject hypothesis. 
+#Based on SMK and ADF test, we can get a conclusion 
+#that TREP may follow a stochastic trend. 
+#This outcome doesn't match with the Q2 detrended acf 
+#but more likely match with differenced TREP.
 
 ```
 
@@ -89,14 +150,40 @@ Compute the Seasonal Mann-Kendall and ADF Test for the original "Total Renewable
 Aggregate the original "Total Renewable Energy Production" series by year. You can use the same procedure we used in class. Store series in a matrix where rows represent months and columns represent years. And then take the columns mean using function colMeans(). Recall the goal is the remove the seasonal variation from the series to check for trend. Convert the accumulates yearly series into a time series object and plot the series using autoplot().
 
 ```{r}
+TREP_matrix <- matrix(ts_TREP_Eng,byrow=FALSE, nrow=12)
+TREP_yearly <- colMeans(TREP_matrix)
+#Since TREP only has 609 objects, so last row of 2023 lack 3 months data
+#and is filled by the first 3 months
+#So (mean2023*12-3month)/9 is the actually mean of 2023
+delete3 <- sum(TREP_data[1:3,2])
+Mean2023 <- ((TREP_yearly[51]*12)-delete3)/9
+TREP_yearly <- c(TREP_yearly[1:50],Mean2023)
+#Create dataframe of yearly TREP for testing
+my_year <- c(year(first(Ren_Date)):year(last(Ren_Date)))
+df_TREP_yearly <- data.frame(my_year, TREP_yearly)
+ts_TREP_yearly <- ts(df_TREP_yearly[,2], start = c(1973), frequency = 1)
 
+autoplot(ts_TREP_yearly)
 ```
 
 ### Q7
 Apply the Mann Kendal, Spearman correlation rank test and ADF. Are the results from the test in agreement with the test results for the monthly series, i.e., results for Q6?
 
 ```{r}
+#MKTest
+MKtest <- MannKendall(ts_TREP_yearly)
+print("Result for seasonal Mann Kendall")
+print(summary(MKtest))
 
+#Spearman test
+TREP_sp_rho=cor.test(ts_TREP_yearly,my_year,method="spearman")
+print(TREP_sp_rho)
+
+#ADF test
+print("Results for ADF test/n")
+print(adf.test(ts_TREP_yearly, alternative = "stationary"))
+
+#The result of yearly TREP is in agreement with monthly TREP.
 ```
 
 
