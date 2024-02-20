@@ -38,7 +38,7 @@ Let's continue working with our inflow data for reservoirs in Brazil.
 ```{r}
 #This R cde chunk was copied from M4
 #Importing time series data from text file#
-raw_inflow_data <- read.table(file="./Data/inflowtimeseries.txt",header=FALSE,skip=0)
+raw_inflow_data <- read.table(file="../Data/inflowtimeseries.txt",header=FALSE,skip=0)
 
 colnames(raw_inflow_data)=c("Month","Year", "HP1", "HP2","HP3","HP4", "HP5",
                             "HP6","HP7", "HP8","HP9","HP10", "HP11","HP12", 
@@ -55,7 +55,7 @@ my_date <- my(my_date)  #function my from package lubridate
 inflow_data <- cbind(my_date,raw_inflow_data[,3:(3+nhydro-1)])
 head(inflow_data)
 
-#Remove last for rows by replacing current data frame
+#Remove last four rows by replacing current data frame
 inflow_data <- inflow_data[1:(nobs-4),]
 my_date <- my_date[1:(nobs-4)]
 
@@ -104,6 +104,7 @@ The random component is the time series without seasonal and trend component. Le
 iHP=1
 decompose_inflow_data=decompose(ts_inflow_data[,iHP],"additive")
 plot(decompose_inflow_data)
+#When you think magnitude is changing over time, then you might need multiplicated model
 
 #Inspect random component
 inflow_random <- decompose_inflow_data$random   
@@ -121,6 +122,7 @@ cat(mean_inflow,sd_inflow)
 
 autoplot(inflow_random)+
   autolayer(tsclean(inflow_random))
+#tsclean will remove and replace outliers and missing values with period mean
 
 ```
 
@@ -224,7 +226,10 @@ ts_inflow_random <- ts(inflow_random,frequency=12,start=c(1931,1))
 clean_inflow_random <- tsclean(ts_inflow_random)
 
 autoplot(ts_inflow_random,series="Random")+
-  autolayer(clean_inflow_random,series="Cleaned")
+  autolayer(clean_inflow_random,series="Cleaned")+
+  geom_abline(slope=0,intercept=3*sd_inflow)+
+  geom_abline(slope=0,intercept=-3*sd_inflow)
+
 
 ```
 

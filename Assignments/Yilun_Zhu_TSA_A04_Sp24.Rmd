@@ -144,7 +144,7 @@ print(adf.test(ts_TREP_Eng, alternative = "stationary"))
 #but more likely match with differenced TREP.
 
 ```
-
+> Answer: 
 
 ### Q6
 Aggregate the original "Total Renewable Energy Production" series by year. You can use the same procedure we used in class. Store series in a matrix where rows represent months and columns represent years. And then take the columns mean using function colMeans(). Recall the goal is the remove the seasonal variation from the series to check for trend. Convert the accumulates yearly series into a time series object and plot the series using autoplot().

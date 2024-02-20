@@ -1,11 +1,11 @@
 ---
 title: "ENV 790.30 - Time Series Analysis for Energy Data | Spring 2024"
 subtitle: "Assignment 5 - Due date 02/13/24"
-author: "Student Name"
+author: "Yilun Zhu"
 output: pdf_document
 geometry: margin=2.54cm
 editor_options: 
-  chunk_output_type: console
+  chunk_output_type: inline
 ---
 
 ## Directions
@@ -27,6 +27,8 @@ library(tseries)
 library(ggplot2)
 library(Kendall)
 library(lubridate)
+library(conflicted)
+library(naniar)
 library(tidyverse)  #load this package so yon clean the data frame using pipes
 
 
@@ -38,13 +40,10 @@ Consider the same data you used for A04 from the spreadsheet "Table_10.1_Renewab
 
 ```{r}
 #Importing data set - using xlsx package
-energy_data <- read.xlsx(file="./Data/Table_10.1_Renewable_Energy_Production_and_Consumption_by_Source.xlsx",header=FALSE,startRow = 13,sheetIndex=1) #startRow is equivalent to skip on read.table
-
-#Now let's extract the column names from row 11 only
-read_col_names <- read.xlsx(file="./Data/Table_10.1_Renewable_Energy_Production_and_Consumption_by_Source.xlsx",header=FALSE,startRow = 11,endRow=11,sheetIndex=1)
-
-colnames(energy_data) <- read_col_names
-head(energy_data)
+#Directly change Not available to NA
+#Since I don't know how to simply make NA strings to NA
+energy_data <- read.csv(file="./Data/Table_10.1_Renewable_Energy_Production_and_Consumption_by_Source.csv",header=TRUE,dec = ".",sep=",",na.strings = c("Not Available") ,stringsAsFactors = FALSE)
+#startRow is equivalent to skip on read.table
 
 nobs=nrow(energy_data)
 nvar=ncol(energy_data)
@@ -56,7 +55,18 @@ nvar=ncol(energy_data)
 For this assignment you will work only with the following columns: Solar Energy Consumption and Wind Energy Consumption. Create a data frame structure with these two time series only and the Date column. Drop the rows with *Not Available* and convert the columns to numeric. You can use filtering to eliminate the initial rows or convert to numeric and then use the drop_na() function. If you are familiar with pipes for data wrangling, try using it!
 
 ```{r}
+#extract two column
+Twocol <- energy_data[,8:9]
+#extract date column and transfer it to date value
+energy_Date <- ym(energy_data[,1])
+#Bind them to make a new data frame
+Workdata <- cbind(energy_Date,Twocol)
+nvar=ncol(Workdata)
 
+#If didn't use na.strings in read.csv, use this from naniar package
+#Workdata <- Workdata %>% replace_with_na(replace = list(Solar.Energy.Consumption = "Not Available", Wind.Energy.Consumption = "Not Available"))
+
+Cleandata <- na.omit(Workdata)
 
 ```
 
@@ -66,6 +76,16 @@ Plot the Solar and Wind energy consumption over time using ggplot. Plot each ser
 
 ```{r}
 
+ggplot(Cleandata, aes(x= energy_Date))+
+  geom_line(aes(y=Cleandata[,2]),color = "blue")+
+  ylab("Solar.Energy.Consumption")+
+  scale_x_date(date_breaks = "5 years", date_labels = "%Y")
+
+ggplot(Cleandata, aes(x= energy_Date))+
+  geom_line(aes(y=Cleandata[,3]),color = "red")+
+  ylab("Wind.Energy.Consumption")+
+  scale_x_date(date_breaks = "5 years", date_labels = "%Y")
+
 ```
 
 ### Q3
@@ -73,7 +93,16 @@ Plot the Solar and Wind energy consumption over time using ggplot. Plot each ser
 Now plot both series in the same graph, also using ggplot(). Use function `scale_color_manual()` to manually add a legend to ggplot. Make the solar energy consumption red and wind energy consumption blue. Add informative name to the y axis using `ylab("Energy Consumption)`. And use function `scale_x_date()` to set x axis breaks every 5 years.
 
 ```{r}
-
+#Here since color is defined 'Solar', so it is in aes()
+#Instead of "aes(y=xxx),color='solar' (which is what we did before)
+ggplot(Cleandata, aes(x= energy_Date))+
+  geom_line(aes(y=Cleandata[,2],color = "Solar"))+
+  geom_line(aes(y=Cleandata[,3],color = "Wind"))+
+  ylab("Energy.Consumption")+
+  scale_x_date(date_breaks = "5 years", date_labels = "%Y")+
+  scale_color_manual(name = "Energy Type",
+                     breaks = c("Solar","Wind"),
+                     values = c("Solar"= "red","Wind" = "blue"))
 
 
 ```
@@ -96,8 +125,14 @@ Transform wind and solar series into a time series object and apply the decompos
 
 ```{r}
 
-```
+ts_Work <- ts(Cleandata[,2:3],frequency = 12)
+decompose_Solar=decompose(ts_Work[,1],"additive")
+decompose_Wind=decompose(ts_Work[,2],"additive")
+plot(decompose_Solar)
+plot(decompose_Wind)
 
+```
+> Answer: From the decomposed plot, it's obvious that both Solar and Wind energy consumption have seasonal trend. Solar has an increasing trend since about 30 years after 1984 and wind has an increasing trend since about 20 years after 1984. About random trend, both plots still show some seasonalities. 
 
 ### Q5
 
@@ -105,23 +140,36 @@ Use the decompose function again but now change the type of the seasonal compone
 
 ```{r}
 
+decompose_Solar=decompose(ts_Work[,1],"multiplicative")
+decompose_Wind=decompose(ts_Work[,2],"multiplicative")
+plot(decompose_Solar)
+plot(decompose_Wind)
+
 ```
+> Answer: This time random components of both plots are much better but still have some seasonalities in some period.
 
 ### Q6
 
 When fitting a model to this data, do you think you need all the historical data? Think about the data from 90s and early 20s. Are there any information from those years we might need to forecast the next six months of Solar and/or Wind consumption. Explain your response.
 
-> Answer:
+> Answer: Since there is a long period from 1984 to 10s that SEC and WEC follow flat trend, which is totally different when it comes to 2010s, we may not need all the historical data if we want to forecast future SEC and WEC. From data after 2010s, certainly including early 20s, we mainly need the new trend components in this 10 years, as well as old seasonal trend and random trend. 
 
 ### Q7
 
 Create a new time series object where historical data starts on January 2012. Hint: use `filter()` function so that you don't need to point to row numbers, .i.e, `filter(xxxx, year(Date) >= 2012 )`. Apply the decompose function `type=additive` to this new time series. Comment the results. Does the random component look random? Think about our discussion in class about seasonal components that depends on the level of the series. 
 
 ```{r}
+data_a2012 <- dplyr::filter(Cleandata, year(energy_Date) >= 2012 )
+ts_a2012 <- ts(data_a2012[,2:3],frequency = 12)
+
+decompose_a2012Solar=decompose(ts_a2012[,1],"additive")
+decompose_a2012Wind=decompose(ts_a2012[,2],"additive")
+plot(decompose_a2012Solar)
+plot(decompose_a2012Wind)
 
 ```
 
-> Answer:
+> Answer: Random component of Wind is more random than before, but Solar still has partly seasonal trend in random component.
 
 ## Identify and Remove outliers
 
@@ -130,15 +178,37 @@ Create a new time series object where historical data starts on January 2012. Hi
 Apply the `tsclean()` to both series from Q7. Did the function removed any outliers from the series? Hint: Use `autoplot()` to check if there is difference between cleaned series and original series.
 
 ```{r}
+ts_clean <- ts(Cleandata[,2:3], frequency = 12) 
+decompose_Solar=decompose(ts_clean[,1],"additive")
+decompose_Wind=decompose(ts_clean[,2],"additive")
+Solarrandom <- decompose_Solar$random
+Windrandom <- decompose_Wind$random
+
+autoplot(Solarrandom)+
+  autolayer(tsclean(Solarrandom))
+
+autoplot(Windrandom)+
+  autolayer(tsclean(Windrandom))
 
 ```
+
+> Answer: Outliers between 30 to 40 is removed.
 
 ### Q9
 
 Redo number Q8 but now with the time series you created on Q7, i.e., the series starting in 2014. Using what `autoplot()` again what happened now?Did the function removed any outliers from the series?
 
 ```{r}
+Solar2012ran <- decompose_a2012Solar$random
+Wind2012ran <- decompose_a2012Wind$random
+CleanSolar2012 <- tsclean(Solar2012ran)
+CleanWind2012 <- tsclean(Wind2012ran)
 
+autoplot(Solar2012ran)+
+  autolayer(tsclean(Solar2012ran))
+
+autoplot(Wind2012ran)+
+  autolayer(tsclean(Wind2012ran))
 ```
 
-> Answer:
+> Answer: No outlier is removed. Since the period is changed, so some value in 1984-2024 is out of normal distribution but is fine in 2012-2024.
