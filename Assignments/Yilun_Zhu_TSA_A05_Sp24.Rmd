@@ -124,15 +124,15 @@ Additional info on `decompose()`.
 Transform wind and solar series into a time series object and apply the decompose function on them using the additive option, i.e., `decompose(ts_data, type = "additive")`. What can you say about the trend component? What about the random component? Does the random component look random? Or does it appear to still have some seasonality on it?
 
 ```{r}
-
-ts_Work <- ts(Cleandata[,2:3],frequency = 12)
+#Remember to give a start so that ts has accurate date instead of number of periods
+ts_Work <- ts(Cleandata[,2:3], start = c(1984,1), frequency = 12)
 decompose_Solar=decompose(ts_Work[,1],"additive")
 decompose_Wind=decompose(ts_Work[,2],"additive")
 plot(decompose_Solar)
 plot(decompose_Wind)
 
 ```
-> Answer: From the decomposed plot, it's obvious that both Solar and Wind energy consumption have seasonal trend. Solar has an increasing trend since about 30 years after 1984 and wind has an increasing trend since about 20 years after 1984. About random trend, both plots still show some seasonalities. 
+> Answer: From the decomposed plot, it's obvious that both Solar and Wind energy consumption have seasonal trend. Solar has an increasing trend since about 30 years after 1984 and wind has an increasing trend since about 20 years after 1984. About random trend, both plots still show some seasonalities. Also the magnitude of two data increasing after 2010 is not a postive signal.
 
 ### Q5
 
@@ -147,6 +147,7 @@ plot(decompose_Wind)
 
 ```
 > Answer: This time random components of both plots are much better but still have some seasonalities in some period.
+> Note: The first part of random is caused by NA, since there is no solar plan in 1984, so the observed value is 0 in this period but when we apply seasonal model, it defaultly has value in 1984. So 0/seasonal cause such noise.
 
 ### Q6
 
