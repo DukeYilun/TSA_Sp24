@@ -1,11 +1,13 @@
 ---
 title: "ENV 797 - Time Series Analysis for Energy and Environment Applications | Spring 2024"
 subtitle: "Assignment 6 - Due date 02/28/24"
-author: "Student Name"
+author: "Yilun Zhu"
 output: pdf_document
 geometry: margin=2.54cm
 ---
-
+```{r setup, include=FALSE} 
+knitr::opts_chunk$set(echo = TRUE,tidy.opts=list(width.cutoff=80), tidy=FALSE) 
+```
 ## Directions
 
 You should open the .rmd file corresponding to this assignment on RStudio. The file is available on our class repository on Github.
@@ -20,8 +22,11 @@ R packages needed for this assignment: "ggplot2", "forecast", "tseries" and "sar
 
 ```{r}
 #Load/install required package here
-
-
+library(ggplot2)
+library(forecast)
+library(tseries)
+library(sarima)
+library(cowplot)
 ```
 
 This assignment has general questions about ARIMA Models.
@@ -32,11 +37,11 @@ Describe the important characteristics of the sample autocorrelation function (A
 
 * AR(2)
 
-> Answer:
+> Answer: For AR(2), the ACF plot will show decaying exponentially with time. The Pacf plot will show it's order and since p=2, in pacf, its significant covariants will cut off at lag 2.
 
 * MA(1)
 
-> Answer:
+> Answer: For MA(1), the ACF plot will show it's order and since q=1, in acf, its significant autocovariances will cut off at lag 1. In Pacf, MA plot will decay exponentially with time.
 
 ## Q2
 
@@ -45,35 +50,81 @@ Recall that the non-seasonal ARIMA is described by three parameters ARIMA$(p,d,q
 (a) Consider three models: ARMA(1,0), ARMA(0,1) and ARMA(1,1) with parameters $\phi=0.6$ and $\theta= 0.9$. The $\phi$ refers to the AR coefficient and the $\theta$ refers to the MA coefficient. Use the `arima.sim()` function in R to generate $n=100$ observations from each of these three models. Then, using `autoplot()` plot the generated series in three separate graphs.
 
 ```{r}
+Model_100 <- arima.sim(n = 100, list(order=c(1,0,0),ar = 0.6))
+Model_001 <- arima.sim(n = 100, list(order=c(0,0,1),ma = 0.9))
+Model_101 <- arima.sim(n = 100, list(order=c(1,0,1),ar = 0.6, ma = 0.9))
 
+autoplot(Model_100)
+autoplot(Model_001)
+autoplot(Model_101)
 ```
 
 (b) Plot the sample ACF for each of these models in one window to facilitate comparison (Hint: use `cowplot::plot_grid()`).
 
 
 ```{r}
+plot_grid(
+  autoplot(Acf(Model_100, lag = 40, plot=FALSE), 
+                main = "Acf Model 100"),
+  autoplot(Acf(Model_001, lag = 40, plot=FALSE),  
+                main = "Acf Model 001"),
+  autoplot(Acf(Model_101, lag = 40, plot=FALSE),
+                main = "Acf Model 101")
+)
 
 ```
 
 (c) Plot the sample PACF for each of these models in one window to facilitate comparison.
 
 ```{r}
-
+plot_grid(
+  autoplot(Pacf(Model_100, lag = 40, plot=FALSE), 
+                main = "Pacf Model 100"),
+  autoplot(Pacf(Model_001, lag = 40, plot=FALSE),  
+                main = "Pacf Model 001"),
+  autoplot(Pacf(Model_101, lag = 40, plot=FALSE),
+                main = "Pacf Model 101")
+)
 ```
 
 (d) Look at the ACFs and PACFs. Imagine you had these plots for a data set and you were asked to identify the model, i.e., is it AR, MA or ARMA and the order of each component. Would you be able identify them correctly? Explain your answer.
 
-> Answer:
+> Answer: For AR, in acf, it should be decaying slowly and floating around 0 in large lag, in pacf, it should cut off at lag p. For MA, in acf, it cuts off at lag q and show decaying in pacf. For ARMA, it shows tailing off in both acf and pacf. (But I found that sometimes these random generated Model didn't cuts off at 1 as it was set AR1/MA1. )
 
 (e) Compare the PACF values R computed with the values you provided for the lag 1 correlation coefficient, i.e., does $\phi=0.6$ match what you see on PACF for ARMA(1,0), and ARMA(1,1)? Should they match?
 
-> Answer:
+> Answer: $\phi$ didn't match with AR(1) and ARMA(1,1) but is close in pacf. Because the regression model has the constant C and error term a_t, the outcome must be a value = $\phi$ + (C+a_t)/y_0 > $\phi$. So AR(1) should match with 0.6 but ARMA should have some difference since ARMA is combination of AR and MA.
 
 (f) Increase number of observations to $n=1000$ and repeat parts (b)-(e).
 
 ```{r}
+Model1k_100 <- arima.sim(n = 1000, list(order=c(1,0,0),ar = 0.6))
+Model1k_001 <- arima.sim(n = 1000, list(order=c(0,0,1),ma = 0.9))
+Model1k_101 <- arima.sim(n = 1000, list(order=c(1,0,1),ar = 0.6, ma = 0.9))
+
+autoplot(Model1k_100)
+autoplot(Model1k_001)
+autoplot(Model1k_101)
+
+plot_grid(
+  autoplot(Acf(Model1k_100, lag = 40, plot=FALSE), 
+                main = "Acf Model1k 100"),
+  autoplot(Acf(Model1k_001, lag = 40, plot=FALSE),  
+                main = "Acf Model1k 001"),
+  autoplot(Acf(Model1k_101, lag = 40, plot=FALSE),
+                main = "Acf Model1k 101")
+)
+plot_grid(
+  autoplot(Pacf(Model1k_100, lag = 40, plot=FALSE), 
+                main = "Pacf Model1k 100"),
+  autoplot(Pacf(Model1k_001, lag = 40, plot=FALSE),  
+                main = "Pacf Model1k 001"),
+  autoplot(Pacf(Model1k_101, lag = 40, plot=FALSE),
+                main = "Pacf Model1k 101")
+)
 
 ```
+> Answer: When observation increases to 1000, the outcome becomes much more clear. The cuts off and tails off of AR and MA is easy to identify. Acf of ARMA is similar to Acf of AR and Pacf of ARMA is similar to Pacf of MA. The value of first lag of AR(1,0) in Pacf is almost equal to $\phi$=0.6   
 
 ## Q3
 
@@ -81,7 +132,11 @@ Consider the ARIMA model $y_t=0.7*y_{t-1}-0.25*y_{t-12}+a_t-0.1*a_{t-1}$
 
 (a) Identify the model using the notation ARIMA$(p,d,q)(P,D,Q)_ s$, i.e., identify the integers $p,d,q,P,D,Q,s$ (if possible) from the equation.
 
+> Answer: This is the ARIMA$(1,0,1)(1,0,0)_12$.  
+
 (b) Also from the equation what are the values of the parameters, i.e., model coefficients.
+
+> Answer: 0.7 is the $\phi_1$, 0.1 is the $\theta_1$, 12 is the seasonal period, -0.25 is the $\phi_{12}$.
 
 ## Q4
 
@@ -89,13 +144,19 @@ Simulate a seasonal ARIMA$(0, 1)\times(1, 0)_{12}$ model with $\phi =0 .8$ and $
 series using `autoplot()`. Does it look seasonal?
 
 ```{r}
-
+SModel001_100_12 <- sim_sarima(n = 1000, model = list(ma = 0.5, sar = 0.8, nseasons=12))
+#Weird, I tried many times but sim_arima only create a numeric data 
+SModel001_100_12 <- ts(SModel001_100_12, frequency = 12)
+autoplot(SModel001_100_12)
 ```
+> Answer: The plot didn't show seasonality.
 
 ## Q5
 
 Plot ACF and PACF of the simulated series in Q4. Comment if the plots are well representing the model you simulated, i.e., would you be able to identify the order of both non-seasonal and seasonal components from the plots? Explain.
 
 ```{r}
-
+autoplot(Acf(SModel001_100_12, lag = 40, plot = TRUE))
+autoplot(Pacf(SModel001_100_12, lag = 40, plot = TRUE))
 ```
+> Answer: In acf, there is multiple spike after lag 12, also there is single spike after 12 in pacf, so it has a SAR process. In acf non-seasonal part, there is a cut off but there isn't a obvious tail off in pacf non-seasonal part (since it gradually decreases and at lag 6 it starts increasing gradually), so it's little bit confusing when identifying the MA process.

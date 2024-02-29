@@ -3,7 +3,7 @@ title: "M5: ARIMA Models in R"
 author: "Luana Lima"
 output: pdf_document
 editor_options: 
-  chunk_output_type: console
+  chunk_output_type: inline
 ---
 
 ## Setting R code chunk options
@@ -219,7 +219,7 @@ Some important arguments for Arima() are:
 *include.drift*: the default is FALSE, but changing to TRUE might lead to better fits. The drift will be necessary when the series mean is not zero even after differencing
 
 ```{r}
-
+#When there is only two terms, it means there is d = -, no differencing.
 #Remember the order d=1 will perform the differencing, 
 #so lets try ARIMA(1,1,1) on the non-seasonal residential data before differencing
 Model_111 <- Arima(deseasonal_residential_price,order=c(1,1,1))
@@ -282,6 +282,10 @@ plot_grid(
   nrow=1
 )
 
+#residual is estimate - observed, fitted is the closet estimate
+#We hope residual to be white noise, around the 0 mean and showing no serial correlation, so it should be insignificant.
+#Drift is the intercept terms. ar1 ar2 is the coefficient of ar term1 or term2. ma1 is the coefficient of ma term1.
+#aic should be as low as possible.
 
 #Let's check AIC
 print(compare_aic)
@@ -293,7 +297,9 @@ Now that you have played with different order, let's try the auto.arima() functi
 
 ```{r}
 
-
+Model_autofit <- auto.arima(deseasonal_residential_price, max.D = 0, max.P = 0, max.Q = 0)
+#lower case max.pdq is for nonseasonal, PDQ is for seasonal. Here is to set there is no seasonal components since it's deseasoned.  
+print(Model_autofit)
 
 ```
 
@@ -307,7 +313,7 @@ If you don't differenciate the series, i.e., if you input the non-stationarity s
 Model_101 <- Arima(deseasonal_residential_price,order=c(1,0,1))
 
 #You will get an error!
-
+#Can set D as 0 if you differenced it before.
 Model_101_diff=Arima(deseasonal_residential_price_diff,order=c(1,0,1))
 print(Model_101_diff)
 
@@ -325,8 +331,10 @@ One way of checking goodness of fit is by plotting observed versus fitted value 
 ```{r}
 
 autoplot(deseasonal_residential_price,series="Observed")+
-  autolayer(???)
-
+  autolayer(Model_111$fitted, series = "ARIMA(1,1,1)")+
+  autolayer(Model_211$fitted, series = "ARIMA(2,1,1)")+
+  autolayer(Model_212$fitted, series = "ARIMA(2,1,2)")+
+  autolayer(Model_011$fitted, series = "ARIMA(0,1,1)")
 
 ```
 This is still non-seasonal data. If you want to compare to original series, you need to add seasonal component back.

@@ -219,11 +219,13 @@ compare_aic <- data.frame(Model_111$aic)
 plot_grid(
   autoplot(Model_111$residuals),
   autoplot(Acf(Model_111$residuals,lag.max=40, plot = FALSE)),
-  autoplot(Pacf(Model_111$residuals,lag.max=40))
+  autoplot(Pacf(Model_111$residuals,lag.max=40)),
+  nrow = 1
 )
 
 #Now let's try ARIMA(0,1,1)
-
+Model_011 <- Arima(deseasonal_residential_price, order = c(0,1,1), include.drift = TRUE)
+print(Model_011)
 
 
 compare_aic <- data.frame(compare_aic,Model_011$aic)
