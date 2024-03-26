@@ -1,7 +1,7 @@
 ---
 title: "ENV 797 - Time Series Analysis for Energy and Environment Applications | Spring 2024"
 subtitle: "Assignment 7 - Due date 03/07/24"
-author: "Student Name"
+author: "Yilun Zhu"
 output: pdf_document
 geometry: margin=2.54cm
 ---
@@ -22,7 +22,19 @@ Packages needed for this assignment: "forecast","tseries". Do not forget to load
 
 ```{r}
 #Load/install required package here
+library(lubridate)
+library(ggplot2)
+library(forecast)  
+library(Kendall)
+library(tseries)
+library(outliers)
+library(tidyverse)
+library(cowplot)
+library(uroot)
+```
 
+```{r setup, include=FALSE} 
+knitr::opts_chunk$set(echo = TRUE,tidy.opts=list(width.cutoff=80), tidy=FALSE) 
 ```
 
 ## Importing and processing the data set
@@ -35,7 +47,16 @@ Consider the data from the file "Net_generation_United_States_all_sectors_monthl
 Import the csv file and create a time series object for natural gas. Make you sure you specify the **start=** and **frequency=** arguments. Plot the time series over time, ACF and PACF.
 
 ```{r}
+Net_Gen_US <- read.csv(file="./Data/Net_generation_United_States_all_sectors_monthly.csv",header=TRUE,skip=4)
+Net_Gen_US <- Net_Gen_US %>%
+  mutate(Month = my(Month)) %>%
+  arrange(Month)
+ts_gas_US <- ts(Net_Gen_US[,4], start = c(year(Net_Gen_US$Month[1]), month(Net_Gen_US$Month[1])), frequency = 12)
 
+plot(ts_gas_US)
+Acfgas <- Acf((ts_gas_US), lag = 40, plot = FALSE)
+Pacfgas <- Pacf((ts_gas_US), lag = 40, plot = FALSE)
+plot_grid(autoplot(Acfgas),autoplot(Pacfgas), nrow = 1)
 ```
 
 ### Q2
@@ -43,8 +64,13 @@ Import the csv file and create a time series object for natural gas. Make you su
 Using the $decompose()$ or $stl()$ and the $seasadj()$ functions create a series without the seasonal component, i.e., a deseasonalized natural gas series. Plot the deseasonalized series over time and corresponding ACF and PACF. Compare with the plots obtained in Q1.
 
 ```{r}
-
+decompose_gas <- decompose(ts_gas_US,"additive")
+deseason_gas <- seasadj(decompose_gas)
+Acf_desea_gas <- Acf((deseason_gas), lag = 40, plot = FALSE)
+Pacf_desea_gas <- Pacf((deseason_gas), lag = 40, plot = FALSE)
+plot_grid(autoplot(Acf_desea_gas),autoplot(Pacf_desea_gas), nrow = 1)
 ```
+> Answer: Seasonal trend is removed.
 
 ## Modeling the seasonally adjusted or deseasonalized series
 
@@ -53,28 +79,71 @@ Using the $decompose()$ or $stl()$ and the $seasadj()$ functions create a series
 Run the ADF test and Mann Kendall test on the deseasonalized data from Q2. Report and explain the results.
 
 ```{r}
+print("Results for ADF test/n")
+print(adf.test(deseason_gas,alternative = "stationary"))
 
+print("Results for MK test/n")
+print(summary(MannKendall(deseason_gas)))
 ```
+>Answer: The result of ADF test shows a p-value < 0.01 which means we can reject the null hypothesis that the deseasonal gas data has a unit root. And we cannot conclude that it's stationary because the MannKendall Test shows a p-value < 0.05 means there is a deterministic trend, which can also be checked in Acf plot.
 
 ### Q4
 
 Using the plots from Q2 and test results from Q3 identify the ARIMA model parameters $p,d$ and $q$. Note that in this case because you removed the seasonal component prior to identifying the model you don't need to worry about seasonal component. Clearly state your criteria and any additional function in R you might use. DO NOT use the $auto.arima()$ function. You will be evaluated on ability to understand the ACF/PACF plots and interpret the test results.
 
 ```{r}
+#From the previous adf and MK test, I can get the information that it still needs to do differencing.
+#Test if the ts_gas needs difference
+Dif <- ndiffs(deseason_gas, alpha = 0.05, test = c("kpss", "adf", "pp"), max.d = 2)
+print(Dif)
+#It shows deseason_gas needs a difference. So, I did a test to confirm it
+ddgas <- diff(deseason_gas,differences=1,lag=1)
+print("Results for ddgas ADF test/n")
+print(adf.test(ddgas,alternative = "stationary"))
+print("Results for ddgas MK test/n")
+print(summary(MannKendall(ddgas)))
+# The result of two test is agreed with each other. d will be 1 in Arima 
 
+Acf_ddgas <- Acf((ddgas), lag = 40, plot = FALSE)
+Pacf_ddgas <- Pacf((ddgas), lag = 40, plot = FALSE)
+plot_grid(autoplot(Acf_ddgas),autoplot(Pacf_ddgas), nrow = 1)
+
+arima_gas <- Arima(deseason_gas, order = c(1,1,1),include.drift = TRUE)
+autoplot(deseason_gas, series = "Deseasonal")+
+  autolayer(arima_gas$fitted, series = "ARIMA-Model")
+arima_gas2 <- Arima(deseason_gas, order = c(2,1,1),include.drift = TRUE)
+autoplot(deseason_gas, series = "Deseasonal")+
+  autolayer(arima_gas2$fitted, series = "ARIMA-Model2")
+arima_gas3 <- Arima(deseason_gas, order = c(1,1,2),include.drift = TRUE)
+autoplot(deseason_gas, series = "Deseasonal")+
+  autolayer(arima_gas3$fitted, series = "ARIMA-Model3")
+arima_gas4 <- Arima(deseason_gas, order = c(2,1,2),include.drift = TRUE)
+autoplot(deseason_gas, series = "Deseasonal")+
+  autolayer(arima_gas4$fitted, series = "ARIMA-Model4")
+print(arima_gas)
+print(arima_gas2)
+print(arima_gas3)
+print(arima_gas4)
 ```
+> Answer: From the adf test and MK test, I get the information that deseason_gas need a difference. After differencing, from the new ACF and Pacf, I observe that Acf tails off and Pacf cuts off which indicate ARMA process.Then I test 4 plots and found that (2,1,2) is the best since the log likeihood is the highest(-2381.07). So finally the best Arima model for deseaon_gas is ARIMA$(2,1,2)$. 
 
 ### Q5
 
 Use `Arima()` from package "forecast" to fit an ARIMA model to your series considering the order estimated in Q4. You should allow constants in the model, i.e., `include.mean = TRUE` or `include.drift=TRUE`. **Print the coefficients** in your report. Hint: use the `cat()` r `print()` function to print.
 
 ```{r}
-
+arima_gas <- Arima(deseason_gas, order = c(2,1,2), include.drift = TRUE)
+print(arima_gas)
 ```
 
 ### Q6
 
 Now plot the residuals of the ARIMA fit from Q5 along with residuals ACF and PACF on the same window. You may use the $checkresiduals()$ function to automatically generate the three plots. Do the residual series look like a white noise series? Why?
+
+```{r}
+checkresiduals(arima_gas, lag = 48)
+```
+> Answer: The outcome looks like a white noise series but has some extreme high points.
 
 ## Modeling the original series (with seasonality)
 
@@ -83,18 +152,35 @@ Now plot the residuals of the ARIMA fit from Q5 along with residuals ACF and PAC
 Repeat Q4-Q6 for the original series (the complete series that has the seasonal component). Note that when you model the seasonal series, you need to specify the seasonal part of the ARIMA model as well, i.e., $P$, $D$ and $Q$.
 
 ```{r}
+gas_trenddiff <- diff(ts_gas_US,differences=1,lag=1)
+tsgas_diff <- diff(gas_trenddiff, differences=1, lag = 12)
+Acf_dtsgas <- Acf((tsgas_diff), lag = 40, plot = FALSE)
+Pacf_dtsgas <- Pacf((tsgas_diff), lag = 40, plot = FALSE)
+plot_grid(autoplot(Acf_dtsgas),autoplot(Pacf_dtsgas), nrow = 1)
 
+seasonDifch <- nsdiffs(gas_trenddiff, alpha = 0.05, test = "ch", max.D = 1)
+seasonDifocsb <- nsdiffs(gas_trenddiff, alpha = 0.05, test = "ocsb", max.D = 1)
+print(seasonDifch)
+print(seasonDifocsb)
+# seems that no need for D
+
+sarima_gas <- Arima(ts_gas_US, order = c(1,0,1), seasonal = c(0,0,1), include.drift = TRUE)
+autoplot(ts_gas_US, series = "seasonal")+
+  autolayer(sarima_gas$fitted, series = "SARIMA-Model")
+print(sarima_gas)
+checkresiduals(sarima_gas, lag = 48)
 ```
-
+> Answer:From non-seasonal part, Acf and Pacf all cuts off, so it should be a ARMA. From the Acf and Pacf seasonal part, the Acf has single spikes and Pacf has multiple spikes, so there is more likely a SMA process than SAR process. From the nsdiffs function, it shows there is no need for a seasonal differencing. So model should be SARIMA$(1,0,1)(0,0,1)_12$ 
 
 ### Q8
 
 Compare the residual series for Q7 and Q6. Can you tell which ARIMA model is better representing the Natural Gas Series? Is that a fair comparison? Explain your response.
 
 ```{r}
-
+checkresiduals(sarima_gas, lag = 48)
+checkresiduals(arima_gas, lag = 48)
 ```
-
+> Answer: According to Acf and residual series, sarima shows more spikes and more large residuals than arima. This comparation seems unfair because the sarima model get a overall combine of seasonality and trend which is more complex.   
 
 ## Checking your model with the auto.arima()
 
@@ -105,15 +191,17 @@ Compare the residual series for Q7 and Q6. Can you tell which ARIMA model is bet
 Use the $auto.arima()$ command on the **deseasonalized series** to let R choose the model parameter for you. What's the order of the best ARIMA model? Does it match what you specified in Q4?
 
 ```{r}
-
+fitarima_gas <- auto.arima(deseason_gas, seasonal = FALSE)
+print(fitarima_gas)
 ```
-
+> Answer: The best fit is ARIMA(1,1,1). I wonder the log liki of (2,1,2) is higher than this (1,1,1), why it is not the best model?
 
 ### Q10
 
 Use the $auto.arima()$ command on the **original series** to let R choose the model parameters for you. Does it match what you specified in Q7?
 
 ```{r}
-
+fitsarima_gas <- auto.arima(ts_gas_US)
+print(fitsarima_gas)
 ```
-
+> Answer: The best fit is ARIMA(1,0,0),(0,1,1). Far away from my model.
